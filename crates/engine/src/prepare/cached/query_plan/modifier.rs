@@ -1,6 +1,6 @@
 use schema::{
-    AuthorizedDirectiveId, DefinitionId, DirectiveSiteId, EntityDefinitionId, ExtensionDirectiveId, FieldDefinitionId,
-    RequiresScopesDirectiveId,
+    AuthorizedDirectiveId, DirectiveSiteId, EntityDefinitionId, ExtensionDirectiveId, FieldDefinitionId,
+    RequiresScopesDirectiveId, TypeDefinitionId,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -18,7 +18,7 @@ pub(crate) enum QueryModifierRule {
     },
     AuthorizedDefinition {
         directive_id: AuthorizedDirectiveId,
-        definition_id: DefinitionId,
+        definition_id: TypeDefinitionId,
     },
     Executable {
         // sorted
@@ -38,15 +38,15 @@ pub(crate) enum QueryModifierTarget {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
 pub(crate) enum ResponseModifierRuleTarget {
-    Field(FieldDefinitionId),
-    FieldOutput(DefinitionId),
+    Field(FieldDefinitionId, query_solver::QueryOrSchemaFieldArgumentIds),
+    FieldOutput(TypeDefinitionId),
     FieldParentEntity(EntityDefinitionId),
 }
 
 impl From<ResponseModifierRuleTarget> for DirectiveSiteId {
     fn from(target: ResponseModifierRuleTarget) -> Self {
         match target {
-            ResponseModifierRuleTarget::Field(field_id) => field_id.into(),
+            ResponseModifierRuleTarget::Field(field_id, _) => field_id.into(),
             ResponseModifierRuleTarget::FieldOutput(output_id) => output_id.into(),
             ResponseModifierRuleTarget::FieldParentEntity(entity_id) => entity_id.into(),
         }

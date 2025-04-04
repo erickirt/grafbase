@@ -6,7 +6,7 @@ pub struct SchemaDirective<'a> {
     #[component(name = "subgraph-name")]
     pub subgraph_name: &'a str,
     pub name: &'a str,
-    pub arguments: &'a [u8],
+    pub arguments: Vec<u8>,
 }
 
 #[derive(Clone, Debug, ComponentType, Lower)]
@@ -142,7 +142,9 @@ impl<'a> From<engine_schema::DirectiveSite<'a>> for DirectiveSite<'a> {
             }),
             engine_schema::DirectiveSite::Union(def) => Self::Union(UnionDirectiveSite { union_name: def.name() }),
             engine_schema::DirectiveSite::Enum(def) => Self::Enum(EnumDirectiveSite { enum_name: def.name() }),
-            engine_schema::DirectiveSite::InputObject(_) => unimplemented!("Not used"),
+            engine_schema::DirectiveSite::InputObject(_)
+            | engine_schema::DirectiveSite::EnumValue(_)
+            | engine_schema::DirectiveSite::InputValue(_) => unimplemented!("Not used"),
         }
     }
 }

@@ -11,6 +11,7 @@ pub mod header;
 pub mod health;
 pub mod hooks;
 mod log_level;
+mod mcp;
 pub mod message_signatures;
 pub mod operation_caching;
 pub mod rate_limit;
@@ -34,6 +35,7 @@ pub use extensions::*;
 pub use header::*;
 pub use health::*;
 pub use hooks::*;
+pub use mcp::ModelControlProtocolConfig;
 pub use message_signatures::MessageSignaturesConfig;
 pub use rate_limit::*;
 use serde_dynamic_string::DynamicString;
@@ -82,7 +84,7 @@ pub struct Config {
     /// Hooks configuration
     pub hooks: Option<HooksWasiConfig>,
     /// Extensions configuration
-    pub extensions: BTreeMap<String, ExtensionsConfig>,
+    pub extensions: BTreeMap<String, ExtensionConfig>,
     /// Health check endpoint configuration
     pub health: HealthConfig,
     /// Global configuration for entity caching
@@ -95,6 +97,8 @@ pub struct Config {
     pub operation_caching: OperationCaching,
     /// Websockets configuration
     pub websockets: WebsocketsConfig,
+    /// Model Control Protocol configuration
+    pub mcp: Option<ModelControlProtocolConfig>,
 }
 
 impl Default for Config {
@@ -122,6 +126,7 @@ impl Default for Config {
             operation_caching: Default::default(),
             websockets: Default::default(),
             extensions: Default::default(),
+            mcp: Default::default(),
         }
     }
 }
@@ -2282,7 +2287,7 @@ mod tests {
         insta::assert_debug_snapshot!(&config.extensions, @r#"
         {
             "rest": Structured(
-                StructuredExtensionsConfig {
+                StructuredExtensionConfig {
                     version: VersionReq {
                         comparators: [
                             Comparator {
@@ -2322,6 +2327,32 @@ mod tests {
     }
 
     #[test]
+    fn mcp_defaults() {
+        let input = indoc! {r#"
+            [mcp]
+            name = "My MCP Service"
+            instructions = "Follow the instructions"
+            path = "/mcp"
+        "#};
+
+        let config: Config = toml::from_str(input).unwrap();
+
+        insta::assert_debug_snapshot!(&config.mcp, @r#"
+        Some(
+            ModelControlProtocolConfig {
+                enabled: false,
+                name: "My MCP Service",
+                instructions: Some(
+                    "Follow the instructions",
+                ),
+                path: "/mcp",
+                enable_mutations: false,
+            },
+        )
+        "#);
+    }
+
+    #[test]
     fn extension_structured_config() {
         let input = indoc! {r#"
             [extensions.nats]
@@ -2341,7 +2372,7 @@ mod tests {
         insta::assert_debug_snapshot!(&config.extensions, @r#"
         {
             "nats": Structured(
-                StructuredExtensionsConfig {
+                StructuredExtensionConfig {
                     version: VersionReq {
                         comparators: [
                             Comparator {

@@ -16,9 +16,12 @@ pub mod types;
 
 pub use component::SdkError;
 pub use extension::{
-    AuthenticationExtension, AuthorizationExtension, IntoQueryAuthorization, ResolverExtension, Subscription,
+    AuthenticationExtension, AuthorizationExtension, FieldResolverExtension, IntoQueryAuthorization,
+    SelectionSetResolverExtension, Subscription,
 };
-pub use grafbase_sdk_derive::{AuthenticationExtension, AuthorizationExtension, ResolverExtension};
+pub use grafbase_sdk_derive::{
+    AuthenticationExtension, AuthorizationExtension, FieldResolverExtension, SelectionSetResolverExtension,
+};
 
 use component::Component;
 
@@ -34,29 +37,39 @@ pub static MINIMUM_GATEWAY_VERSION: [u8; 6] =
 pub static SDK_VERSION: [u8; 6] = *include_bytes!(concat!(env!("OUT_DIR"), "/sdk_version_bytes"));
 
 #[doc(hidden)]
+#[allow(clippy::too_many_arguments)]
 mod wit {
     #![expect(missing_docs)]
 
     wit_bindgen::generate!({
         skip: ["register-extension"],
-        path: "./wit/since_0_10_0/",
+        path: "./wit/since_0_14_0/",
         world: "sdk",
+        additional_derives: [
+            serde::Deserialize,
+            serde::Serialize,
+        ]
     });
 
-    pub use exports::grafbase::sdk::authentication::{Guest as AuthenticationGuest, Token};
-    pub use exports::grafbase::sdk::authorization::{
-        AuthorizationDecisions, AuthorizationDecisionsDenySome, Guest as AuthorizationGuest,
-    };
-    pub use exports::grafbase::sdk::init::Guest as InitGuest;
-    pub use exports::grafbase::sdk::resolver::{FieldOutput, Guest as ResolverGuest};
+    pub use exports::grafbase::sdk::authentication::Guest as AuthenticationGuest;
+    pub use exports::grafbase::sdk::authorization::Guest as AuthorizationGuest;
+    pub use exports::grafbase::sdk::field_resolver::Guest as FieldResolverGuest;
+    pub use exports::grafbase::sdk::selection_set_resolver::Guest as SelectionSetResolverGuest;
 
     pub use grafbase::sdk::access_log::*;
+    pub use grafbase::sdk::authorization_types::{AuthorizationDecisions, AuthorizationDecisionsDenySome};
     pub use grafbase::sdk::cache::*;
     pub use grafbase::sdk::directive::*;
     pub use grafbase::sdk::error::*;
+    pub use grafbase::sdk::field_resolver_types::FieldOutput;
     pub use grafbase::sdk::headers::*;
     pub use grafbase::sdk::http_client::*;
     pub use grafbase::sdk::nats_client::*;
+    pub use grafbase::sdk::postgres::*;
+    pub use grafbase::sdk::resolver_types::*;
+    pub use grafbase::sdk::schema::*;
+    pub use grafbase::sdk::selection_set_resolver_types;
+    pub use grafbase::sdk::token::*;
 }
 
 wit::export!(Component with_types_in wit);

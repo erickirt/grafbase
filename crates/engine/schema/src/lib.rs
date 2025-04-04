@@ -2,8 +2,6 @@
 
 use grafbase_workspace_hack as _;
 
-use std::sync::OnceLock;
-
 mod builder;
 mod composite_type;
 mod config;
@@ -17,6 +15,7 @@ mod extension;
 mod field;
 mod field_set;
 mod generated;
+mod guid;
 mod ids;
 mod input_object;
 mod input_value;
@@ -39,7 +38,7 @@ pub use self::builder::BuildError;
 pub use config::*;
 pub use directive::*;
 pub use extension::*;
-use extension_catalog::ExtensionCatalog;
+use extension_catalog::{ExtensionCatalog, ExtensionId};
 pub use field_set::*;
 pub use gateway_config::SubscriptionProtocol;
 pub use generated::*;
@@ -52,42 +51,7 @@ pub use template::*;
 use walker::{Iter, Walk};
 pub use wrapping::*;
 
-mod built_info {
-    // The file has been placed there by the build script.
-    include!(concat!(env!("OUT_DIR"), "/built.rs"));
-}
-
-impl Schema {
-    /// A unique identifier of this build of the engine to version cache keys.
-    /// If built in a git repository, the cache version is taken from the git commit id.
-    /// For builds outside of a git repository, the build time is used.
-    pub fn build_identifier() -> &'static [u8] {
-        static SHA: OnceLock<Vec<u8>> = OnceLock::new();
-
-        SHA.get_or_init(|| match built_info::GIT_COMMIT_HASH {
-            Some(hash) => hex::decode(hash).expect("Expect hex format"),
-            None => built_info::BUILD_TOKEN.as_bytes().to_vec(),
-        })
-    }
-}
-
 pub type Walker<'a, T> = walker::Walker<'a, T, &'a Schema>;
-
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct Version(Vec<u8>);
-
-impl<T: AsRef<[u8]>> From<T> for Version {
-    fn from(value: T) -> Self {
-        Version(value.as_ref().to_vec())
-    }
-}
-
-impl std::ops::Deref for Version {
-    type Target = [u8];
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
 
 /// /!\ This is *NOT* backwards-compatible. /!\
 /// Only a schema serialized with the exact same version is expected to work. For backwards
@@ -96,7 +60,12 @@ impl std::ops::Deref for Version {
 pub struct Schema {
     pub subgraphs: SubGraphs,
     pub graph: Graph,
-    pub version: Version,
+    // Cryptographic hash of the schema
+    pub hash: [u8; 32],
+
+    // Kept for messages
+    #[indexed_by(ExtensionId)]
+    extensions: Vec<extension_catalog::Id>,
 
     /// All strings deduplicated.
     #[indexed_by(StringId)]
@@ -117,23 +86,18 @@ pub struct Schema {
 
 impl Schema {
     pub async fn from_sdl_or_panic(sdl: &str) -> Self {
-        let federated_graph = federated_graph::FederatedGraph::from_sdl(sdl).unwrap();
         let mut config: gateway_config::Config = Default::default();
         config.graph.introspection = Some(true);
-        let version = Version::from(Vec::new());
         let extension_catalog = Default::default();
-        Self::build(&config, &federated_graph, &extension_catalog, version)
-            .await
-            .unwrap()
+        Self::build(&config, sdl, &extension_catalog).await.unwrap()
     }
 
     pub async fn build(
         config: &gateway_config::Config,
-        federated_graph: &federated_graph::FederatedGraph,
+        federated_sdl: &str,
         extension_catalog: &ExtensionCatalog,
-        version: Version,
     ) -> Result<Schema, BuildError> {
-        builder::build(config, federated_graph, extension_catalog, version).await
+        builder::build(config, federated_sdl, extension_catalog).await
     }
 }
 
@@ -161,7 +125,7 @@ pub struct Graph {
     pub root_operation_types_record: RootOperationTypesRecord,
 
     // All type definitions sorted by their name (actual string)
-    type_definitions_ordered_by_name: Vec<DefinitionId>,
+    type_definitions_ordered_by_name: Vec<TypeDefinitionId>,
     #[indexed_by(ObjectDefinitionId)]
     object_definitions: Vec<ObjectDefinitionRecord>,
     inaccessible_object_definitions: BitSet<ObjectDefinitionId>,
@@ -236,11 +200,11 @@ impl Schema {
         item.walk(self)
     }
 
-    pub fn definitions(&self) -> impl Iter<Item = Definition<'_>> + '_ {
+    pub fn type_definitions(&self) -> impl Iter<Item = TypeDefinition<'_>> + '_ {
         self.graph.type_definitions_ordered_by_name.walk(self)
     }
 
-    pub fn definition_by_name(&self, name: &str) -> Option<Definition<'_>> {
+    pub fn type_definition_by_name(&self, name: &str) -> Option<TypeDefinition<'_>> {
         self.graph
             .type_definitions_ordered_by_name
             .binary_search_by_key(&name, |definition_id| definition_id.walk(self).name())
@@ -282,6 +246,10 @@ impl Schema {
             .map(Into::into)
             .chain(virt)
             .chain(std::iter::once(Subgraph::Introspection(self)))
+    }
+
+    pub fn resolvers(&self) -> impl Iterator<Item = ResolverDefinition<'_>> + '_ {
+        IdRange::<ResolverDefinitionId>::from(0..self.graph.resolver_definitions.len()).walk(self)
     }
 }
 

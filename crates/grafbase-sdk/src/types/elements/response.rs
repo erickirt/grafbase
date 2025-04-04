@@ -1,4 +1,4 @@
-use crate::{cbor, sealed::Sealed, types::authorization::private::QueryElementOrResponseItem, wit, SdkError};
+use crate::{SdkError, cbor, sealed::Sealed, types::authorization::private::QueryElementOrResponseItem, wit};
 use serde::Deserialize;
 
 use super::QueryElementId;
@@ -131,12 +131,9 @@ pub struct ResponseItem<'a> {
 }
 
 impl<'a> ResponseItem<'a> {
-    /// Deserializes the configuration bytes into the requested type.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if deserialization fails.
-    pub fn deserialize<T>(&self) -> Result<T, SdkError>
+    /// Arguments that depend on response data will be provided here. All other arguments will only
+    /// be provided in the `authorize_query()` step today.
+    pub fn directive_arguments<T>(&self) -> Result<T, SdkError>
     where
         T: Deserialize<'a>,
     {

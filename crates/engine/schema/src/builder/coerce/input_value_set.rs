@@ -1,6 +1,6 @@
 use id_newtypes::IdRange;
 
-use crate::{DefinitionId, InputValueDefinitionId, InputValueSelection, InputValueSet, builder::GraphContext};
+use crate::{InputValueDefinitionId, InputValueSelection, InputValueSet, TypeDefinitionId, builder::GraphContext};
 
 use super::{ExtensionDirectiveArgumentsCoercer, ValuePathSegment, value_path_to_string};
 
@@ -8,7 +8,7 @@ use super::{ExtensionDirectiveArgumentsCoercer, ValuePathSegment, value_path_to_
 pub enum InputValueSetError {
     #[error("Could not parse InputValueSet: {err}")]
     InvalidInputValueSet { err: String },
-    #[error("Uknown input value '{name}'{path}")]
+    #[error("Unknown input value '{name}'{path}")]
     UnknownInputValue { name: String, path: String },
     #[error("Cannot use fragments inside a InputValueSet")]
     CannotUseFragments,
@@ -72,7 +72,7 @@ fn convert_selection_set(
 
             let subselection = if field.selection_set().len() == 0 {
                 InputValueSet::All
-            } else if let DefinitionId::InputObject(id) = ctx.graph[definition_id].ty_record.definition_id {
+            } else if let TypeDefinitionId::InputObject(id) = ctx.graph[definition_id].ty_record.definition_id {
                 value_path.push(ctx.graph[definition_id].name_id.into());
                 let subselection = InputValueSet::SelectionSet(convert_selection_set(
                     ctx,

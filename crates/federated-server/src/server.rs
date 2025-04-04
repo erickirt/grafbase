@@ -6,6 +6,7 @@ mod gateway;
 mod graph_fetch_method;
 mod graph_updater;
 mod health;
+mod mcp;
 mod state;
 mod trusted_documents_client;
 
@@ -15,6 +16,7 @@ pub use graph_fetch_method::GraphFetchMethod;
 pub use state::ServerState;
 
 use runtime_local::wasi::hooks::{self, ComponentLoader, HooksWasi};
+use tokio_util::sync::CancellationToken;
 use ulid::Ulid;
 
 use axum::{Router, extract::State, response::IntoResponse, routing::get};
@@ -123,7 +125,13 @@ pub async fn serve(
     )
     .await?;
 
-    let router = router(
+    let mcp_url = config
+        .mcp
+        .as_ref()
+        .filter(|m| m.enabled)
+        .map(|m| format!("http://{listen_address}{}", m.path));
+
+    let (router, ct) = router(
         config,
         update_handler.engine_watcher(),
         server_runtime.clone(),
@@ -140,14 +148,18 @@ pub async fn serve(
 
     cfg_if::cfg_if! {
         if #[cfg(feature = "lambda")] {
-            let result = lambda_bind(&path, router).await;
+            let result = lambda_bind(&path, router, mcp_url).await;
         } else {
-            let result = bind(listen_address, &path, router, tls.as_ref(), server_runtime).await;
+            let result = bind(listen_address, &path, router, tls.as_ref(), server_runtime, mcp_url).await;
         }
     }
     // Once all pending requests have been dealt with, we shutdown everything else left (telemetry, logs)
     if is_access_log_enabled {
         access_log_sender.graceful_shutdown().await;
+    }
+
+    if let Some(ct) = ct {
+        ct.cancel();
     }
 
     result
@@ -158,7 +170,7 @@ pub async fn router<R: engine::Runtime, SR: ServerRuntime>(
     engine: EngineWatcher<R>,
     server_runtime: SR,
     inject_layers_before_cors: impl FnOnce(axum::Router<ServerState<R, SR>>) -> axum::Router<ServerState<R, SR>>,
-) -> crate::Result<axum::Router> {
+) -> crate::Result<(axum::Router, Option<CancellationToken>)> {
     let path = &config.graph.path;
     let websocket_path = &config.graph.websocket_path;
 
@@ -173,7 +185,7 @@ pub async fn router<R: engine::Runtime, SR: ServerRuntime>(
     };
 
     let state = ServerState::new(
-        engine,
+        engine.clone(),
         config.request_body_limit.bytes().max(0) as usize,
         server_runtime.clone(),
     );
@@ -181,7 +193,7 @@ pub async fn router<R: engine::Runtime, SR: ServerRuntime>(
     let mut router = server_runtime
         .base_router()
         .unwrap_or_default()
-        .route(path, get(engine_execute).post(engine_execute))
+        .route(path, get(graphql_execute).post(graphql_execute))
         .route_service(websocket_path, WebsocketService::new(websocket_sender));
 
     router = inject_layers_before_cors(router)
@@ -207,7 +219,17 @@ pub async fn router<R: engine::Runtime, SR: ServerRuntime>(
         router = csrf::inject_layer(router);
     }
 
-    Ok(router)
+    let ct = match config.mcp {
+        Some(ref mcp_config) if mcp_config.enabled => {
+            let (mcp_router, ct) = mcp::router(engine, mcp_config);
+            router = router.merge(mcp_router);
+
+            Some(ct)
+        }
+        _ => None,
+    };
+
+    Ok((router, ct))
 }
 
 #[cfg_attr(feature = "lambda", allow(unused))]
@@ -217,6 +239,7 @@ async fn bind(
     router: Router<()>,
     tls: Option<&TlsConfig>,
     server_runtime: impl ServerRuntime,
+    mcp_url: Option<String>,
 ) -> crate::Result<()> {
     let app = router.into_make_service();
 
@@ -227,9 +250,15 @@ async fn bind(
 
     let handle_for_listening = handle.clone();
     let url = format!("http://{addr}{path}");
+
     tokio::spawn(async move {
         if handle_for_listening.clone().listening().await.is_some() {
             tracing::info!("GraphQL endpoint exposed at {url}");
+
+            if let Some(mcp_url) = mcp_url {
+                tracing::info!("MCP endpoint exposed at {mcp_url}");
+            }
+
             server_runtime.on_ready(url);
         }
     });
@@ -257,12 +286,17 @@ async fn bind(
 }
 
 #[cfg(feature = "lambda")]
-async fn lambda_bind(path: &str, router: Router<()>) -> crate::Result<()> {
+async fn lambda_bind(path: &str, router: Router<()>, mcp_url: Option<String>) -> crate::Result<()> {
     let app = tower::ServiceBuilder::new()
         .layer(engine_axum::lambda::LambdaLayer::default())
         .service(router);
 
     tracing::info!("GraphQL endpoint exposed at {path}");
+
+    if let Some(mcp_url) = mcp_url {
+        tracing::info!("MCP endpoint exposed at {mcp_url}");
+    }
+
     lambda_http::run(app).await.expect("cannot start lambda http server");
 
     Ok(())
@@ -284,7 +318,7 @@ async fn lambda_bind(path: &str, router: Router<()>) -> crate::Result<()> {
 ///
 /// If there are no subgraphs registered, an internal server error response will
 /// be returned.
-async fn engine_execute<R: engine::Runtime, SR: ServerRuntime>(
+async fn graphql_execute<R: engine::Runtime, SR: ServerRuntime>(
     State(state): State<ServerState<R, SR>>,
     request: axum::extract::Request,
 ) -> impl IntoResponse {

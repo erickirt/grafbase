@@ -1,29 +1,26 @@
 use std::path::PathBuf;
 
-use engine_schema::Schema;
 use extension_catalog::{ExtensionCatalog, ExtensionId};
 use gateway_config::Config;
 use semver::Version;
 
-use crate::extension::SchemaDirective;
-
-pub struct ExtensionConfig<T = toml::Value> {
+pub(crate) struct ExtensionConfig<T = toml::Value> {
     pub id: ExtensionId,
     pub manifest_id: extension_catalog::Id,
+    pub r#type: extension_catalog::TypeDiscriminants,
     pub sdk_version: Version,
     pub pool: PoolConfig,
     pub wasm: WasmConfig,
-    pub schema_directives: Vec<SchemaDirective>,
     pub guest_config: Option<T>,
 }
 
 #[derive(Default)]
-pub struct PoolConfig {
+pub(crate) struct PoolConfig {
     pub max_size: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
-pub struct WasmConfig {
+pub(crate) struct WasmConfig {
     pub location: PathBuf,
     pub networking: bool,
     pub stdout: bool,
@@ -31,11 +28,7 @@ pub struct WasmConfig {
     pub environment_variables: bool,
 }
 
-pub(super) fn load_extensions_config(
-    extension_catalog: &ExtensionCatalog,
-    config: &Config,
-    schema: &Schema,
-) -> Vec<ExtensionConfig> {
+pub(super) fn load_extensions_config(extension_catalog: &ExtensionCatalog, config: &Config) -> Vec<ExtensionConfig> {
     let mut wasm_extensions = Vec::with_capacity(extension_catalog.len());
 
     for (id, extension) in extension_catalog.iter_with_id() {
@@ -59,28 +52,14 @@ pub(super) fn load_extensions_config(
         wasm_extensions.push(ExtensionConfig {
             id,
             manifest_id: manifest.id.clone(),
+            r#type: manifest.r#type.clone().into(),
             pool: PoolConfig {
                 max_size: max_pool_size,
             },
             wasm: wasi_config,
-            schema_directives: Vec::new(),
             guest_config: extension_config.config().cloned(),
             sdk_version: manifest.sdk_version.clone(),
         });
-    }
-
-    for subgraph in schema.subgraphs() {
-        let directives = subgraph.extension_schema_directives();
-
-        for schema_directive in directives {
-            let config = &mut wasm_extensions[usize::from(schema_directive.extension_id)];
-
-            config.schema_directives.push(SchemaDirective::new(
-                schema_directive.name(),
-                subgraph.name(),
-                schema_directive.static_arguments(),
-            ));
-        }
     }
 
     wasm_extensions

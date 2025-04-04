@@ -26,8 +26,10 @@ union DirectiveSite @id @meta(module: "directive_site") @variants(remove_suffix:
   | InputObjectDefinition
   | ScalarDefinition
   | FieldDefinition
+  | InputValueDefinition
+  | EnumValue
 
-union Definition @id @meta(module: "definition") @variants(remove_suffix: true) =
+union TypeDefinition @id @meta(module: "type_definition") @variants(remove_suffix: "Definition") =
   | ObjectDefinition
   | InterfaceDefinition
   | UnionDefinition
@@ -114,7 +116,7 @@ type FieldRequires @meta(module: "field/requires") {
 }
 
 type Type @meta(module: "ty", derive: ["PartialEq", "Eq"]) @copy {
-  definition: Definition!
+  definition: TypeDefinition!
   wrapping: Wrapping!
 }
 scalar Wrapping @copy
@@ -124,11 +126,13 @@ type EnumDefinition @meta(module: "enum_def") @indexed(id_size: "u32") {
   description: String
   values: [EnumValue!]!
   directives: [TypeSystemDirective!]!
+  exists_in_subgraphs: [Subgraph!]!
 }
 
-type EnumValue @meta(module: "enum_value") @indexed(id_size: "u32") {
+type EnumValue @meta(module: "enum_value", debug: false) @indexed(id_size: "u32") {
   name: String!
   description: String
+  parent_enum: EnumDefinition!
   directives: [TypeSystemDirective!]!
 }
 
@@ -151,6 +155,7 @@ type UnionDefinition @meta(module: "union", debug: false) @indexed(id_size: "u32
   Sorted by SubgraphId
   """
   not_fully_implemented_in: [Subgraph!]!
+  exists_in_subgraphs: [Subgraph!]!
 }
 
 type ScalarDefinition @meta(module: "scalar") @indexed(id_size: "u32") {
@@ -159,6 +164,7 @@ type ScalarDefinition @meta(module: "scalar") @indexed(id_size: "u32") {
   description: String
   specified_by_url: String
   directives: [TypeSystemDirective!]!
+  exists_in_subgraphs: [Subgraph!]!
 }
 
 scalar ScalarType @copy
@@ -168,6 +174,7 @@ type InputObjectDefinition @meta(module: "input_object") @indexed(id_size: "u32"
   description: String
   input_fields: [InputValueDefinition!]!
   directives: [TypeSystemDirective!]!
+  exists_in_subgraphs: [Subgraph!]!
 }
 
 type InputValueDefinition @meta(module: "input_value") @indexed(id_size: "u32") {
@@ -242,12 +249,12 @@ type ListSizeDirective @meta(module: "directive/complexity_control") @indexed(id
 
 scalar ExtensionId @id @prelude
 scalar ExtensionDirectiveArgumentId @id
-scalar ExtensionDirectiveKind @copy @prelude
+scalar ExtensionDirectiveType @copy @prelude
 
 type ExtensionDirective @meta(module: "directive/extension") @indexed(id_size: "u32") {
   subgraph: Subgraph!
   extension_id: ExtensionId!
-  kind: ExtensionDirectiveKind!
+  ty: ExtensionDirectiveType!
   name: String!
   argument_ids: [ExtensionDirectiveArgumentId!]!
   requirements: FieldSet!
@@ -322,11 +329,15 @@ type RenameDuplicateHeaderRule @meta(module: "header_rule/rename_duplicate") @co
 
 union ResolverDefinition
   @meta(module: "resolver")
-  @variants(empty: ["Introspection"], names: ["GraphqlRootField", "GraphqlFederationEntity", "FieldResolverExtension"])
+  @variants(
+    empty: ["Introspection"]
+    names: ["GraphqlRootField", "GraphqlFederationEntity", "FieldResolverExtension", "SelectionSetResolverExtension"]
+  )
   @indexed(deduplicated: true, id_size: "u32") =
   | GraphqlRootFieldResolverDefinition
   | GraphqlFederationEntityResolverDefinition
   | FieldResolverExtensionDefinition
+  | SelectionSetResolverExtensionDefinition
 
 type GraphqlRootFieldResolverDefinition @meta(module: "resolver/graphql") @copy {
   endpoint: GraphqlEndpoint!
@@ -339,4 +350,10 @@ type GraphqlFederationEntityResolverDefinition @meta(module: "resolver/graphql")
 
 type FieldResolverExtensionDefinition @meta(module: "resolver/field_resolver_ext") {
   directive: ExtensionDirective!
+}
+
+"There will be one per field contrary to GraphqlRootFieldResolverDefinition"
+type SelectionSetResolverExtensionDefinition @meta(module: "resolver/selection_set_resolver_ext") @copy {
+  subgraph: VirtualSubgraph!
+  extension_id: ExtensionId!
 }

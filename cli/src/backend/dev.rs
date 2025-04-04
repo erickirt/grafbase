@@ -64,10 +64,6 @@ pub async fn start(
     let dev_configuration = get_and_merge_configurations(gateway_config_path, graph_overrides_path).await?;
     let introspection_forced = dev_configuration.introspection_forced;
 
-    spawn_blocking(move || {
-        let _ = output_handler(output_handler_ready_receiver, warnings_receiver, introspection_forced);
-    });
-
     let port = port
         .or(dev_configuration
             .merged_configuration
@@ -77,6 +73,22 @@ pub async fn start(
         .unwrap_or(DEFAULT_PORT);
 
     let listen_address = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
+
+    let mcp_url = dev_configuration
+        .merged_configuration
+        .mcp
+        .as_ref()
+        .filter(|m| m.enabled)
+        .map(|m| format!("http://{listen_address}{}", m.path));
+
+    spawn_blocking(move || {
+        let _ = output_handler(
+            output_handler_ready_receiver,
+            warnings_receiver,
+            introspection_forced,
+            mcp_url,
+        );
+    });
 
     let mut subgraphs = graphql_composition::Subgraphs::default();
 
@@ -163,6 +175,7 @@ fn output_handler(
     mut url_receiver: broadcast::Receiver<String>,
     mut warnings_receiver: mpsc::Receiver<Vec<String>>,
     introspection_forced: bool,
+    mcp_url: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     use crossterm::{
         QueueableCommand,
@@ -175,20 +188,27 @@ fn output_handler(
     println!("{} your subgraphs...\n", "Fetching".yellow().bold());
 
     let url = url_receiver.blocking_recv()?;
-    let url = url::Url::parse(&url)?;
+    let graphql_url = url::Url::parse(&url)?;
 
     stdout().queue(MoveUp(2))?.queue(Clear(ClearType::CurrentLine))?;
 
     let explorer_url = format!(
         "http://{}:{}",
-        url.host()
+        graphql_url
+            .host()
             .map(|h| h.to_string())
             .unwrap_or_else(|| "127.0.0.1".to_string()),
-        url.port().unwrap()
+        graphql_url.port().unwrap()
     );
 
-    println!("GraphQL endpoint: {}", url.to_string().bold());
-    println!("Explorer:         {}\n", explorer_url.bold());
+    println!("- Local:    {}", explorer_url);
+    println!("- GraphQL:  {}", graphql_url);
+
+    if let Some(mcp_url) = mcp_url {
+        println!("- MCP:      {}", mcp_url);
+    }
+
+    println!("\n");
 
     if introspection_forced {
         tracing::info!("introspection is always enabled in dev mode, config overridden");

@@ -7,7 +7,7 @@ pub const EXTENSION_DIR_NAME: &str = "grafbase_extensions";
 pub async fn load_manifest(mut url: Url) -> Result<Manifest, String> {
     if url
         .path_segments()
-        .and_then(|segments| segments.last())
+        .and_then(|mut segments| segments.next_back())
         .is_none_or(|last| last != "manifest.json")
     {
         url.path_segments_mut().unwrap().push("manifest.json");
@@ -45,7 +45,7 @@ mod tests {
                 name: "my-extension".to_string(),
                 version: "1.0.0".parse().unwrap(),
             },
-            kind: Kind::Resolver(ResolverKind {
+            r#type: Type::FieldResolver(FieldResolverType {
                 resolver_directives: Some(vec!["resolver".to_string()]),
             }),
             sdk_version: "0.3.0".parse().unwrap(),

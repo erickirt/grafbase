@@ -4,6 +4,8 @@ github.com/99designs/gqlgen v0.17.67 h1:Fuu2s74iqWCslv7oOHjb+xTW5+KwRuMATVHNC6gb
 github.com/99designs/gqlgen v0.17.67/go.mod h1:VFKZgBh0FrQYKbiGc5iB8AqnUpDiGY5l/Tu/nLhe+Jw=
 github.com/99designs/gqlgen v0.17.68 h1:vH6jTShCv7sgz1ejXEDNqho7KWlA4ZwSWzVsxyhypAM=
 github.com/99designs/gqlgen v0.17.68/go.mod h1:fvCiqQAu2VLhKXez2xFvLmE47QgAPf/KTPN5XQ4rsHQ=
+github.com/99designs/gqlgen v0.17.70 h1:xgLIgQuG+Q2L/AE9cW595CT7xCWCe/bpPIFGSfsGSGs=
+github.com/99designs/gqlgen v0.17.70/go.mod h1:fvCiqQAu2VLhKXez2xFvLmE47QgAPf/KTPN5XQ4rsHQ=
 github.com/99designs/gqlgen/_examples v0.0.0-20250310174910-cd25f3630e69 h1:ORaXjIZ6iP11KuRijqJX9nH4a/kUiLxnNKz7I5wd/Lw=
 github.com/99designs/gqlgen/_examples v0.0.0-20250310174910-cd25f3630e69/go.mod h1:7w+fKnp7t4DfX31v9nQuD+CTt6hLt56+VKPmFZ9OXrw=
 github.com/99designs/gqlgen/_examples v0.0.0-20250312115048-6ac519c5aed2 h1:llsnS2Y7EdauKp+/OhAeWL6XwISPG24V1ovrs8qC32A=
@@ -22,6 +24,10 @@ github.com/99designs/gqlgen/_examples v0.0.0-20250319111814-e91e7f6c785c h1:We27
 github.com/99designs/gqlgen/_examples v0.0.0-20250319111814-e91e7f6c785c/go.mod h1:noHK+GCvF7Db90EEwHaS9AKDrnHLmhFDYj3BiHeEQnE=
 github.com/99designs/gqlgen/_examples v0.0.0-20250324182929-7f0d34534e21 h1:xMaRJS3UzBtOsgd6DPZtBkISQXqoW/fyk5iBUBLrQs8=
 github.com/99designs/gqlgen/_examples v0.0.0-20250324182929-7f0d34534e21/go.mod h1:noHK+GCvF7Db90EEwHaS9AKDrnHLmhFDYj3BiHeEQnE=
+github.com/99designs/gqlgen/_examples v0.0.0-20250326142723-43a809bc5627 h1:OPfeK7CfuBY0RP6lm/94JBrlUvUtc3xqChjztsynwSk=
+github.com/99designs/gqlgen/_examples v0.0.0-20250326142723-43a809bc5627/go.mod h1:noHK+GCvF7Db90EEwHaS9AKDrnHLmhFDYj3BiHeEQnE=
+github.com/99designs/gqlgen/_examples v0.0.0-20250401210444-4ca0dd69a516 h1:iFE3dvuOZ/GZKQQD8ltjdwQiJ6uvuwBiKPtb5LtMiHw=
+github.com/99designs/gqlgen/_examples v0.0.0-20250401210444-4ca0dd69a516/go.mod h1:noHK+GCvF7Db90EEwHaS9AKDrnHLmhFDYj3BiHeEQnE=
 github.com/PuerkitoBio/goquery v1.9.3 h1:mpJr/ikUA9/GNJB/DBZcGeFDXUtosHRyRrwh7KGdTG0=
 github.com/PuerkitoBio/goquery v1.9.3/go.mod h1:1ndLHPdTz+DyQPICCWYlYQMPl0oXZj0G6D4LCYA6u4U=
 github.com/agnivade/levenshtein v1.2.1 h1:EHBY3UOn1gwdy/VbFwgo4cxecRznFk7fKWN1KOX7eoM=
